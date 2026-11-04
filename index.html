@@ -1,0 +1,693 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RDWUG - Random Dynamic Warm Up Generator</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#ff4c00">
+
+<link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png">
+
+<style>
+:root {
+    --bg: #101318;
+    --panel: #1c222b;
+    --text: #ffffff;
+    --muted: #aab2bf;
+    --accent: #ff4c00;
+    --green: #24b36b;
+    --red: #d83b3b;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    padding: 16px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: Arial, sans-serif;
+}
+
+.container {
+    max-width: 650px;
+    margin: auto;
+}
+
+h1 {
+    text-align: center;
+    color: var(--accent);
+}
+
+h2 {
+    border-bottom: 2px solid var(--accent);
+    padding-bottom: 8px;
+}
+
+.panel {
+    background: var(--panel);
+    padding: 16px;
+    margin: 14px 0;
+    border-radius: 12px;
+}
+
+label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 12px 0;
+    font-size: 17px;
+}
+
+input, button {
+    font-size: 17px;
+}
+
+input[type="number"] {
+    width: 75px;
+    padding: 7px;
+    border-radius: 6px;
+    border: 0;
+}
+
+input[type="checkbox"] {
+    width: 22px;
+    height: 22px;
+    accent-color: var(--accent);
+}
+
+button {
+    border: 0;
+    border-radius: 10px;
+    padding: 15px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.primary {
+    background: var(--accent);
+    color: white;
+    width: 100%;
+    font-size: 21px;
+}
+
+.done {
+    background: var(--green);
+    color: white;
+    width: 100%;
+    font-size: 25px;
+    margin-top: 15px;
+}
+
+.skip {
+    background: var(--red);
+    color: white;
+    width: 100%;
+    margin-top: 10px;
+}
+
+.secondary {
+    background: #46505f;
+    color: white;
+    margin: 5px;
+}
+
+.hidden { display: none; }
+
+.setting-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin: 12px 0;
+}
+
+.exercise-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+}
+
+.exercise-row input[type="number"] {
+    margin-left: auto;
+}
+
+#cue {
+    font-size: clamp(38px, 10vw, 70px);
+    text-align: center;
+    font-weight: bold;
+    padding: 35px 5px;
+    overflow-wrap: anywhere;
+}
+
+#reps {
+    font-size: 32px;
+    text-align: center;
+    color: var(--accent);
+}
+
+#countdown {
+    text-align: center;
+    font-size: 36px;
+    font-weight: bold;
+}
+
+#status {
+    text-align: center;
+    color: var(--muted);
+    min-height: 25px;
+}
+
+.small {
+    color: var(--muted);
+    font-size: 13px;
+}
+</style>
+</head>
+
+<body>
+<div class="container">
+
+<h1>RANDOM WORKOUT</h1>
+
+<!-- SETUP SCREEN -->
+<div id="setupScreen">
+
+<div class="panel">
+<h2>Workout settings</h2>
+
+<div class="setting-row">
+<label for="duration">Duration (minutes)</label>
+<input id="duration" type="number" min="1" max="180" value="20">
+</div>
+
+<div class="setting-row">
+<label for="minDelay">Minimum delay (seconds)</label>
+<input id="minDelay" type="number" min="1" max="600" value="7">
+</div>
+
+<div class="setting-row">
+<label for="maxDelay">Maximum delay (seconds)</label>
+<input id="maxDelay" type="number" min="1" max="600" value="15">
+</div>
+
+<label>
+<input id="audioEnabled" type="checkbox">
+Enable audio announcements
+</label>
+</div>
+
+<div class="panel">
+<h2>Basic movements</h2>
+<div id="movementOptions"></div>
+</div>
+
+<div class="panel">
+<h2>Exercises</h2>
+<div id="exerciseOptions"></div>
+</div>
+
+<button class="primary" onclick="startWorkout()">START WORKOUT</button>
+
+<p class="small">
+Sequence: Four random movements, followed by one random exercise.
+Exercise rep counts are remembered automatically.
+</p>
+
+</div>
+
+<!-- WORKOUT SCREEN -->
+<div id="workoutScreen" class="hidden">
+
+<div class="panel">
+<div id="countdown">20:00</div>
+<div id="status">Jogging on the spot</div>
+<div id="cue">READY</div>
+<div id="reps"></div>
+
+<div id="exerciseControls" class="hidden">
+<button class="done" onclick="completeExercise()">DONE</button>
+<button class="skip" onclick="skipExercise()">SKIP</button>
+</div>
+</div>
+
+<div class="panel">
+<button class="secondary" onclick="pauseWorkout()" id="pauseButton">PAUSE</button>
+<button class="secondary" onclick="stopWorkout()">STOP</button>
+</div>
+
+</div>
+
+<!-- FINISHED SCREEN -->
+<div id="finishedScreen" class="hidden">
+<div class="panel">
+<h2 style="text-align:center">WORKOUT COMPLETE</h2>
+<p style="text-align:center">You've reached the end of your workout.</p>
+<button class="primary" onclick="returnToSetup()">BACK TO SETUP</button>
+</div>
+</div>
+
+</div>
+
+<script>
+
+// ------------------------------------
+// EXERCISES AND MOVEMENTS
+// ------------------------------------
+
+const movements = [
+    "Up", "Down", "Left", "Right",
+    "Both", "Front", "Back"
+];
+
+const exercises = [
+    "Sit-ups", "Press-ups", "Burpees",
+    "Star jumps", "Leg raises"
+];
+
+const defaultReps = {
+    "Sit-ups": 15,
+    "Press-ups": 10,
+    "Burpees": 8,
+    "Star jumps": 20,
+    "Leg raises": 12
+};
+
+// ------------------------------------
+// SAVED SETTINGS
+// ------------------------------------
+
+function loadSaved() {
+    try {
+        return JSON.parse(localStorage.getItem("randomWorkoutSettings")) || {};
+    } catch {
+        return {};
+    }
+}
+
+let saved = loadSaved();
+
+let reps = saved.reps || {...defaultReps};
+
+let selectedMovements = saved.movements || [...movements];
+let selectedExercises = saved.exercises || [...exercises];
+
+document.getElementById("audioEnabled").checked =
+    saved.audioEnabled !== false;
+
+function saveSettings() {
+    saved = {
+        reps,
+        movements: selectedMovements,
+        exercises: selectedExercises,
+        audioEnabled: document.getElementById("audioEnabled").checked
+    };
+
+    localStorage.setItem(
+        "randomWorkoutSettings",
+        JSON.stringify(saved)
+    );
+}
+
+// ------------------------------------
+// BUILD SETUP CHECKLISTS
+// ------------------------------------
+
+function buildOptions() {
+
+    const movementDiv = document.getElementById("movementOptions");
+    movementDiv.innerHTML = "";
+
+    movements.forEach(name => {
+
+        const label = document.createElement("label");
+        const checkbox = document.createElement("input");
+
+        checkbox.type = "checkbox";
+        checkbox.checked = selectedMovements.includes(name);
+
+        checkbox.onchange = () => {
+            selectedMovements = movements.filter(item =>
+                document.getElementById("movement_" + item).checked
+            );
+            saveSettings();
+        };
+
+        checkbox.id = "movement_" + name;
+
+        label.appendChild(checkbox);
+        label.appendChild(document.createTextNode(name));
+
+        movementDiv.appendChild(label);
+    });
+
+    const exerciseDiv = document.getElementById("exerciseOptions");
+    exerciseDiv.innerHTML = "";
+
+    exercises.forEach(name => {
+
+        const row = document.createElement("div");
+        row.className = "exercise-row";
+
+        const label = document.createElement("label");
+        const checkbox = document.createElement("input");
+
+        checkbox.type = "checkbox";
+        checkbox.checked = selectedExercises.includes(name);
+        checkbox.id = "exercise_" + name;
+
+        checkbox.onchange = () => {
+            selectedExercises = exercises.filter(item =>
+                document.getElementById("exercise_" + item).checked
+            );
+            saveSettings();
+        };
+
+        label.appendChild(checkbox);
+        label.appendChild(document.createTextNode(name));
+
+        const repInput = document.createElement("input");
+        repInput.type = "number";
+        repInput.min = "1";
+        repInput.max = "500";
+        repInput.value = reps[name];
+        repInput.title = "Repetitions for " + name;
+
+        repInput.onchange = () => {
+            reps[name] = Math.max(1, Number(repInput.value) || 1);
+            repInput.value = reps[name];
+            saveSettings();
+        };
+
+        row.appendChild(label);
+        row.appendChild(repInput);
+
+        exerciseDiv.appendChild(row);
+    });
+}
+
+buildOptions();
+
+// ------------------------------------
+// WORKOUT ENGINE
+// ------------------------------------
+
+let workoutEnd = 0;
+let remainingTime = 0;
+let timerInterval = null;
+let cueTimeout = null;
+let paused = false;
+let waitingForExercise = false;
+let movementCount = 0;
+let currentExercise = null;
+
+function randomItem(array) {
+    return array[Math.floor(Math.random() * array.length)];
+}
+
+function startWorkout() {
+
+    selectedMovements = movements.filter(item =>
+        document.getElementById("movement_" + item).checked
+    );
+
+    selectedExercises = exercises.filter(item =>
+        document.getElementById("exercise_" + item).checked
+    );
+
+    const duration = Number(document.getElementById("duration").value);
+    const minDelay = Number(document.getElementById("minDelay").value);
+    const maxDelay = Number(document.getElementById("maxDelay").value);
+
+    if (!duration || duration < 1) {
+        alert("Please enter a valid workout duration.");
+        return;
+    }
+
+    if (selectedMovements.length === 0 || selectedExercises.length === 0) {
+        alert("Select at least one movement and one exercise.");
+        return;
+    }
+
+    if (!minDelay || !maxDelay || minDelay < 1 || maxDelay < minDelay) {
+        alert("Check your minimum and maximum delays.");
+        return;
+    }
+
+    saveSettings();
+
+    clearTimeout(cueTimeout);
+    clearInterval(timerInterval);
+
+    remainingTime = duration * 60;
+    workoutEnd = Date.now() + remainingTime * 1000;
+    movementCount = 0;
+    paused = false;
+    waitingForExercise = false;
+
+    document.getElementById("setupScreen").classList.add("hidden");
+    document.getElementById("finishedScreen").classList.add("hidden");
+    document.getElementById("workoutScreen").classList.remove("hidden");
+
+    document.getElementById("pauseButton").textContent = "PAUSE";
+
+    updateCountdown();
+
+    timerInterval = setInterval(updateCountdown, 250);
+
+    document.getElementById("cue").textContent = "Jogging on the spot";
+    document.getElementById("reps").textContent = "";
+
+    scheduleNextCue(minDelay, maxDelay);
+}
+
+// ------------------------------------
+// RANDOM CUE SCHEDULING
+// ------------------------------------
+
+function scheduleNextCue(minDelay, maxDelay) {
+
+    if (paused || waitingForExercise) return;
+
+    const delay = Math.floor(
+        Math.random() * (maxDelay - minDelay + 1)
+    ) + minDelay;
+
+    document.getElementById("status").textContent =
+        "Next cue in approximately " + delay + " seconds";
+
+    cueTimeout = setTimeout(() => {
+
+        if (paused || remainingTime <= 0) return;
+
+        // Four movements, then one exercise
+        if (movementCount < 4) {
+            issueMovement();
+        } else {
+            issueExercise();
+        }
+
+    }, delay * 1000);
+}
+
+// ------------------------------------
+// MOVEMENT CUE
+// ------------------------------------
+
+function issueMovement() {
+
+    const movement = randomItem(selectedMovements);
+
+    movementCount++;
+
+    document.getElementById("cue").textContent =
+        movement.toUpperCase();
+
+    document.getElementById("reps").textContent = "";
+
+    document.getElementById("status").textContent =
+        "Movement " + movementCount + " of 4";
+
+    playAudio(movement.toLowerCase());
+
+    const minDelay = Number(document.getElementById("minDelay").value);
+    const maxDelay = Number(document.getElementById("maxDelay").value);
+
+    scheduleNextCue(minDelay, maxDelay);
+}
+
+// ------------------------------------
+// EXERCISE CUE
+// ------------------------------------
+
+function issueExercise() {
+
+    currentExercise = randomItem(selectedExercises);
+    waitingForExercise = true;
+
+    document.getElementById("cue").textContent =
+        currentExercise.toUpperCase();
+
+    document.getElementById("reps").textContent =
+        reps[currentExercise] + " REPS";
+
+    document.getElementById("status").textContent =
+        "Complete the exercise, then press DONE";
+
+    document.getElementById("exerciseControls").classList.remove("hidden");
+
+    const audioName = currentExercise
+        .toLowerCase()
+        .replaceAll(" ", "-");
+
+    playAudio(audioName);
+}
+
+// ------------------------------------
+// EXERCISE COMPLETION
+// ------------------------------------
+
+function completeExercise() {
+
+    waitingForExercise = false;
+    movementCount = 0;
+
+    document.getElementById("exerciseControls").classList.add("hidden");
+
+    document.getElementById("cue").textContent = "WELL DONE";
+    document.getElementById("reps").textContent = "";
+
+    const minDelay = Number(document.getElementById("minDelay").value);
+    const maxDelay = Number(document.getElementById("maxDelay").value);
+
+    scheduleNextCue(minDelay, maxDelay);
+}
+
+function skipExercise() {
+    completeExercise();
+    document.getElementById("status").textContent = "Exercise skipped";
+}
+
+// ------------------------------------
+// AUDIO
+// ------------------------------------
+
+function playAudio(filename) {
+
+    if (!document.getElementById("audioEnabled").checked) return;
+
+    const audio = new Audio("assets/audio/" + filename + ".wav");
+
+    audio.play().catch(() => {
+        // Missing file or browser playback restriction:
+        // continue without audio.
+    });
+}
+
+// ------------------------------------
+// TIMER
+// ------------------------------------
+
+function updateCountdown() {
+
+    if (paused) return;
+
+    remainingTime = Math.max(
+        0,
+        Math.ceil((workoutEnd - Date.now()) / 1000)
+    );
+
+    const minutes = Math.floor(remainingTime / 60);
+    const seconds = remainingTime % 60;
+
+    document.getElementById("countdown").textContent =
+        String(minutes).padStart(2, "0") + ":" +
+        String(seconds).padStart(2, "0");
+
+    if (remainingTime <= 0) {
+        finishWorkout();
+    }
+}
+
+// ------------------------------------
+// PAUSE / RESUME / STOP
+// ------------------------------------
+
+function pauseWorkout() {
+
+    if (!paused) {
+
+        paused = true;
+
+        remainingTime = Math.max(
+            0,
+            Math.ceil((workoutEnd - Date.now()) / 1000)
+        );
+
+        clearTimeout(cueTimeout);
+
+        document.getElementById("pauseButton").textContent = "RESUME";
+        document.getElementById("status").textContent = "Workout paused";
+
+    } else {
+
+        paused = false;
+
+        workoutEnd = Date.now() + remainingTime * 1000;
+
+        document.getElementById("pauseButton").textContent = "PAUSE";
+
+        if (!waitingForExercise) {
+            const minDelay = Number(document.getElementById("minDelay").value);
+            const maxDelay = Number(document.getElementById("maxDelay").value);
+            scheduleNextCue(minDelay, maxDelay);
+        }
+
+        updateCountdown();
+    }
+}
+
+function stopWorkout() {
+
+    if (!confirm("Stop this workout?")) return;
+
+    finishWorkout();
+}
+
+function finishWorkout() {
+
+    clearTimeout(cueTimeout);
+    clearInterval(timerInterval);
+
+    paused = false;
+    waitingForExercise = false;
+
+    document.getElementById("workoutScreen").classList.add("hidden");
+    document.getElementById("finishedScreen").classList.remove("hidden");
+}
+
+function returnToSetup() {
+
+    document.getElementById("finishedScreen").classList.add("hidden");
+    document.getElementById("setupScreen").classList.remove("hidden");
+
+    document.getElementById("exerciseControls").classList.add("hidden");
+}
+
+// Save audio preference when changed
+document.getElementById("audioEnabled").addEventListener("change", saveSettings);
+
+</script>
+<script>
+if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+        navigator.serviceWorker.register("./service-worker.js")
+            .catch(error => console.error("Service worker error:", error));
+    });
+}
+</script>
+</body>
+</html>
