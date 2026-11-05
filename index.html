@@ -149,6 +149,44 @@ button {
     color: var(--accent);
 }
 
+/* Workout display: use the available width in landscape */
+@media (orientation: landscape) {
+    body {
+        padding: 8px;
+    }
+
+    .container {
+        max-width: 100%;
+    }
+
+    #workoutScreen .panel:first-child {
+        margin: 6px 0;
+        padding: 8px;
+    }
+
+    #countdown {
+        font-size: clamp(24px, 5vw, 40px);
+    }
+
+    #cue {
+        font-size: clamp(32px, 9vh, 72px);
+        padding: 8px 4px;
+    }
+
+    #reps {
+        font-size: clamp(20px, 5vh, 32px);
+    }
+
+    #status {
+        min-height: 0;
+    }
+
+    #workoutScreen .panel:last-child {
+        margin: 6px 0;
+        padding: 8px;
+    }
+}
+
 #countdown {
     text-align: center;
     font-size: 36px;
@@ -403,6 +441,57 @@ let paused = false;
 let waitingForExercise = false;
 let movementCount = 0;
 let currentExercise = null;
+let workoutActive = false;
+let wakeLock = null;
+
+async function requestWorkoutDisplay() {
+    // Best-effort fullscreen/orientation lock; support depends on Android/TWA.
+    try {
+        if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+            await document.documentElement.requestFullscreen();
+        }
+    } catch (err) {
+        console.log("Fullscreen unavailable:", err);
+    }
+
+    try {
+        if (screen.orientation && screen.orientation.lock) {
+            await screen.orientation.lock("landscape");
+        }
+    } catch (err) {
+        console.log("Landscape lock unavailable:", err);
+    }
+}
+
+async function requestWakeLock() {
+    try {
+        if ("wakeLock" in navigator && !wakeLock) {
+            wakeLock = await navigator.wakeLock.request("screen");
+            wakeLock.addEventListener("release", () => {
+                wakeLock = null;
+            });
+        }
+    } catch (err) {
+        console.log("Screen wake lock unavailable:", err);
+    }
+}
+
+async function releaseWakeLock() {
+    if (wakeLock) {
+        try {
+            await wakeLock.release();
+        } catch (err) {
+            console.log("Wake lock release error:", err);
+        }
+        wakeLock = null;
+    }
+}
+
+document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && workoutActive && !paused) {
+        requestWakeLock();
+    }
+});
 
 function randomItem(array) {
     return array[Math.floor(Math.random() * array.length)];
@@ -451,6 +540,10 @@ function startWorkout() {
     document.getElementById("setupScreen").classList.add("hidden");
     document.getElementById("finishedScreen").classList.add("hidden");
     document.getElementById("workoutScreen").classList.remove("hidden");
+
+    workoutActive = true;
+    requestWorkoutDisplay();
+    requestWakeLock();
 
     document.getElementById("pauseButton").textContent = "PAUSE";
 
@@ -621,6 +714,7 @@ function pauseWorkout() {
     if (!paused) {
 
         paused = true;
+        releaseWakeLock();
 
         remainingTime = Math.max(
             0,
@@ -635,6 +729,8 @@ function pauseWorkout() {
     } else {
 
         paused = false;
+        requestWakeLock();
+        requestWorkoutDisplay();
 
         workoutEnd = Date.now() + remainingTime * 1000;
 
@@ -661,6 +757,16 @@ function finishWorkout() {
 
     clearTimeout(cueTimeout);
     clearInterval(timerInterval);
+
+    workoutActive = false;
+    releaseWakeLock();
+    try {
+        if (document.fullscreenElement && document.exitFullscreen) {
+            document.exitFullscreen();
+        }
+    } catch (err) {
+        console.log("Exit fullscreen error:", err);
+    }
 
     paused = false;
     waitingForExercise = false;
